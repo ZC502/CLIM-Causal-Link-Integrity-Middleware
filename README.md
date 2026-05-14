@@ -136,6 +136,37 @@ When an anomaly occurs, CLIM dumps a **Black Box** snapshot:
 
 ## F. Theory & Implementation
 
+The original NARH formulation was developed for discrete rigid-body simulation pipelines.
+
+In that setting, a system state is advanced by a sequence of sub-operators:
+
+```text
+s[t+1] = Ψσ(k) ∘ ... ∘ Ψσ(1)(s[t])
+```
+
+where the execution order may depend on solver internals such as constraint partitioning, thread scheduling, batching, or projection steps.
+
+The original discrete associator is written as:
+
+```text
+A(a,b,c;s) =
+    ((Ψa ∘ Ψb) ∘ Ψc)(s)
+  - (Ψa ∘ (Ψb ∘ Ψc))(s)
+```
+
+and the residual is:
+
+```text
+R[t] = || A(a,b,c;s[t]) ||
+```
+
+The important point is that NARH does **not** claim that the physical state space itself is mathematically invalid.
+
+It measures order-dependent deviations introduced by discrete numerical or computational pipelines.
+
+`ros2_kinematic_guard` applies the same idea to ROS 2 command-flow consistency.
+
+For the full high-dimensional NARH research background, see:
 Detailed mathematical derivation of the **NARH Engine**, SIPA background, and $R_{NAR}$ calculation logic are moved to:
 
 🔗 docs/narh_engine.md
