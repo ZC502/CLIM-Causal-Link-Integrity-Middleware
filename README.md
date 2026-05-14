@@ -94,3 +94,48 @@ Robot Driver / Vendor Adapter
 Odometry / State / Action Feedback
 ```
 **Non-Intrusive by Design**: CLIM primarily operates in Observe Mode, providing high-fidelity telemetry without interfering with the robot's internal control loops, making it safe for immediate deployment in brownfield sites.
+
+## A. Scope & Roadmap 
+**Current Scope (v0.1)**: Focused on **AMR / AGV** (Differential Drive, Ackermann, Omni) command-execution integrity via ROS 2.
+
+**On the Horizon**:
+- Kinematic Adapters: Robotic Arms (ISO 10218-1), Quadrupedal/Bipedal motion integrity.
+- Standard Bridges: Native VDA 5050 state-bridge, MassRobotics Health extension, OPC UA Robotics.
+- Task Layer: Semantic action validation (did the gripper actually close based on torque-phase alignment?).
+
+## B. Deployment Modes: Observe vs. Guard
+
+CLIM offers two levels of integration to balance safety and control:
+1. Observe Mode (Passive): CLIM monitors topics, logs Evidence Windows, and reports telemetry. It does not alter robot behavior. Ideal for initial integration and brownfield audits.
+2. Guard Mode (Active): CLIM acts as an interceptor. It can hold or modify commands (e.g., `BRAKE_AND_RESYNC`) if the causal residual violates safety thresholds.
+
+## C. Schema-Driven Configuration
+
+CLIM is designed to be **Zero-Code** for standard robot types.
+
+Users define their robot and environment via YAML schemas:
+- `robot_profile`: Physical limits (max_accel, max_jerk).
+- `model_type`: Kinematic constraints (diff_drive, ackermann).
+- `telemetry_mapping`: Topic names and field-mapping (e.g., `/cmd_vel` to `/odom`).
+
+## D. Open-RMF: Quantitative Delay Advisory
+
+CLIM provides a quantitative, evidence-based trigger for the proposed Open-RMF `~/delay` topic.
+
+Instead of arbitrary timeouts, CLIM emits a `DelayAdvisory` based on causal integrity:
+- **Indefinite Delay Candidate**: Triggered when the command-feedback phase is completely lost.
+- **Progress Point Integrity**: High-confidence verification that the robot is physically at the progress point reported by the fleet adapter.
+
+## E. The Causal Evidence Window
+
+When an anomaly occurs, CLIM dumps a **Black Box** snapshot:
+- Synchronized slices of commands vs. feedback.
+- Calculated Residual ($R_{NAR}$) and dominant error cause.
+- Causal Alignment state (`ALIGNED` vs. `BROKEN`).
+- Purpose: Eliminates "vendor-blaming" in multi-vendor sites by providing objective execution logs.
+
+## F. Theory & Implementation
+
+Detailed mathematical derivation of the **NARH Engine**, SIPA background, and $R_{NAR}$ calculation logic are moved to:
+
+🔗 docs/narh_engine.md
