@@ -270,28 +270,29 @@ This compact summary is the best first screenshot for Open-RMF discussions.
 
 ## Save Clean JSON Example Outputs
 
-The CLIM reporter publishes JSON payloads as `std_msgs/String`.
+CLIM publishes JSON payloads as `std_msgs/String`.
 
-If you run:
+A normal ROS 2 echo command will show the ROS message wrapper:
 
 ```bash
 ros2 topic echo /clim/open_rmf/delay_advisory --once
 ```
 
-ROS 2 will save the full message wrapper:
+Example raw echo:
 
 ```text
 data: "{\n  \"timestamp\": ... }"
 ---
 ```
 
-For clean JSON files, extract only the `data` field and pretty-print it.
+To save clean JSON files, extract only the `data` field, remove the ROS echo separator, and pretty-print the JSON.
 
 ### Command Execution Integrity
 
 ```bash
 ros2 topic echo /clim/command_execution_integrity --field data --once --full-length \
-| python3 -c "import sys,json; print(json.dumps(json.loads(sys.stdin.read()), indent=2))" \
+| awk '/^---$/{exit} {print}' \
+| python3 -m json.tool \
 > command_execution_integrity_example.json
 ```
 
@@ -299,7 +300,8 @@ ros2 topic echo /clim/command_execution_integrity --field data --once --full-len
 
 ```bash
 ros2 topic echo /clim/evidence_window --field data --once --full-length \
-| python3 -c "import sys,json; print(json.dumps(json.loads(sys.stdin.read()), indent=2))" \
+| awk '/^---$/{exit} {print}' \
+| python3 -m json.tool \
 > evidence_window_example.json
 ```
 
@@ -307,7 +309,8 @@ ros2 topic echo /clim/evidence_window --field data --once --full-length \
 
 ```bash
 ros2 topic echo /clim/open_rmf/delay_advisory --field data --once --full-length \
-| python3 -c "import sys,json; print(json.dumps(json.loads(sys.stdin.read()), indent=2))" \
+| awk '/^---$/{exit} {print}' \
+| python3 -m json.tool \
 > delay_advisory_example.json
 ```
 
@@ -315,36 +318,18 @@ ros2 topic echo /clim/open_rmf/delay_advisory --field data --once --full-length 
 
 ```bash
 ros2 topic echo /clim/resync_state --field data --once --full-length \
-| python3 -c "import sys,json; print(json.dumps(json.loads(sys.stdin.read()), indent=2))" \
+| awk '/^---$/{exit} {print}' \
+| python3 -m json.tool \
 > resync_state_example.json
 ```
 
-Now each file is a clean JSON document.
-
-You can verify it with:
+Verify the files:
 
 ```bash
-python3 -m json.tool delay_advisory_example.json
-python3 -m json.tool evidence_window_example.json
 python3 -m json.tool command_execution_integrity_example.json
+python3 -m json.tool evidence_window_example.json
+python3 -m json.tool delay_advisory_example.json
 python3 -m json.tool resync_state_example.json
-```
-### Optional: save raw ROS message output
-
-If you want the original ROS message wrapper for debugging:
-
-```bash
-ros2 topic echo /clim/command_execution_integrity --once --full-length > command_execution_integrity_raw.txt
-ros2 topic echo /clim/evidence_window --once --full-length > evidence_window_raw.txt
-ros2 topic echo /clim/open_rmf/delay_advisory --once --full-length > delay_advisory_raw.txt
-ros2 topic echo /clim/resync_state --once --full-length > resync_state_raw.txt
-```
-
-These files contain the `std_msgs/String` wrapper:
-
-```text
-data: "{ ... }"
----
 ```
 
 ## G. The “Silent Failure” Test
