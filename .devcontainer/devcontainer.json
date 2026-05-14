@@ -1,0 +1,17 @@
+{
+  "name": "CLIM ROS 2 Humble",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "remoteUser": "vscode",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-iot.vscode-ros",
+        "ms-python.python",
+        "redhat.vscode-yaml"
+      ]
+    }
+  },
+  "postCreateCommand": "bash -lc 'source /opt/ros/humble/setup.bash; if [ -d examples/ros2_ws/src ]; then cd examples/ros2_ws; elif [ -d src ]; then :; else echo \"No ROS workspace found\"; exit 0; fi; rosdep install --from-paths src --ignore-src -r -y || true; colcon build --symlink-install || true'"
+}
