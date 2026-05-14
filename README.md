@@ -268,179 +268,83 @@ This compact summary is the best first screenshot for Open-RMF discussions.
 
 ---
 
-## The Four CLIM JSON Outputs
+## Save Clean JSON Example Outputs
 
-CLIM publishes four structured JSON outputs.
+The CLIM reporter publishes JSON payloads as `std_msgs/String`.
 
----
-
-### 1. Command Execution Integrity
+If you run:
 
 ```bash
-ros2 topic echo /clim/command_execution_integrity
+ros2 topic echo /clim/open_rmf/delay_advisory --once
 ```
 
-This answers:
+ROS 2 will save the full message wrapper:
 
 ```text
-Is the recent command-feedback window still trustworthy?
-```
-
-Expected fields include:
-
-```json
-{
-  "commandExecutionIntegrity": {
-    "residual": 5.477,
-    "residualType": "kinematic_consistency",
-    "latencyClass": "CRITICAL",
-    "causalAlignment": "BROKEN",
-    "executionState": "RESYNCING",
-    "dominantCause": "CMD_DT_TOO_SMALL",
-    "recommendedVehicleResponse": "RESYNC_REQUIRED",
-    "suggestedFleetAction": "HOLD_NEW_ORDERS"
-  }
-}
-```
-
+data: "{\n  \"timestamp\": ... }"
 ---
+```
 
-### 2. Evidence Window
+For clean JSON files, extract only the `data` field and pretty-print it.
+
+### Command Execution Integrity
 
 ```bash
-ros2 topic echo /clim/evidence_window
+ros2 topic echo /clim/command_execution_integrity --field data --once --full-length \
+| python3 -c "import sys,json; print(json.dumps(json.loads(sys.stdin.read()), indent=2))" \
+> command_execution_integrity_example.json
 ```
 
-This is the CLIM black-box record.
+### Evidence Window
 
-It captures the short command-feedback window that caused the advisory.
-
-Expected fields include:
-
-```json
-{
-  "evidenceWindow": {
-    "windowId": "clim-window-42",
-    "windowStartUnixSec": 1778753133.17,
-    "windowEndUnixSec": 1778753133.37,
-    "progressPoint": 0.63,
-    "causalAlignment": "BROKEN",
-    "latencyClass": "CRITICAL",
-    "residual": 5.477,
-    "dominantCause": "CMD_DT_TOO_SMALL",
-    "statusSequence": [
-      "RED_BRAKE",
-      "RESYNCING"
-    ],
-    "residualSequence": [
-      31.145,
-      5.477
-    ]
-  }
-}
+```bash
+ros2 topic echo /clim/evidence_window --field data --once --full-length \
+| python3 -c "import sys,json; print(json.dumps(json.loads(sys.stdin.read()), indent=2))" \
+> evidence_window_example.json
 ```
 
-This is useful for:
+### Open-RMF-style Delay Advisory
+
+```bash
+ros2 topic echo /clim/open_rmf/delay_advisory --field data --once --full-length \
+| python3 -c "import sys,json; print(json.dumps(json.loads(sys.stdin.read()), indent=2))" \
+> delay_advisory_example.json
+```
+
+### Resync State
+
+```bash
+ros2 topic echo /clim/resync_state --field data --once --full-length \
+| python3 -c "import sys,json; print(json.dumps(json.loads(sys.stdin.read()), indent=2))" \
+> resync_state_example.json
+```
+
+Now each file is a clean JSON document.
+
+You can verify it with:
+
+```bash
+python3 -m json.tool delay_advisory_example.json
+python3 -m json.tool evidence_window_example.json
+python3 -m json.tool command_execution_integrity_example.json
+python3 -m json.tool resync_state_example.json
+```
+### Optional: save raw ROS message output
+
+If you want the original ROS message wrapper for debugging:
+
+```bash
+ros2 topic echo /clim/command_execution_integrity --once --full-length > command_execution_integrity_raw.txt
+ros2 topic echo /clim/evidence_window --once --full-length > evidence_window_raw.txt
+ros2 topic echo /clim/open_rmf/delay_advisory --once --full-length > delay_advisory_raw.txt
+ros2 topic echo /clim/resync_state --once --full-length > resync_state_raw.txt
+```
+
+These files contain the `std_msgs/String` wrapper:
 
 ```text
-post-incident analysis
-bag / MCAP review
-multi-vendor debugging
-integration responsibility tracing
-```
-
+data: "{ ... }"
 ---
-
-### 3. Open-RMF-style Delay Advisory
-
-```bash
-ros2 topic echo /clim/open_rmf/delay_advisory
-```
-
-This is advisory-only JSON.
-
-It does not publish a real Open-RMF `~/delay` message.  
-A Plan Executor or fleet adapter decides whether to map this advisory into an actual delay report.
-
-Expected fields include:
-
-```json
-{
-  "delayAdvisory": {
-    "advisoryOnly": true,
-    "openRmfMessageMode": "json_only",
-    "shouldReportDelay": true,
-    "planId": "demo_plan_001",
-    "progressPoint": 0.63,
-    "indefiniteDelayCandidate": true,
-    "delayConfidence": 0.92,
-    "cause": {
-      "code": "EXECUTION_INTEGRITY_DEGRADED",
-      "message": "Command-feedback causal alignment is broken.",
-      "dominantCause": "CMD_DT_TOO_SMALL"
-    },
-    "recommendedVehicleResponse": "RESYNC_REQUIRED",
-    "suggestedFleetAction": "HOLD_NEW_ORDERS"
-  }
-}
-```
-
-This answers:
-
-```text
-Should the Plan Executor consider reporting delay or holding progress?
-```
-
----
-
-### 4. Resync State
-
-```bash
-ros2 topic echo /clim/resync_state
-```
-
-This explains whether the robot is still waiting for clean command-feedback windows.
-
-Expected fields include:
-
-```json
-{
-  "resyncState": {
-    "state": "RESYNCING",
-    "latencyClass": "CRITICAL",
-    "causalAlignment": "BROKEN",
-    "cleanWindowCount": 2,
-    "requiredCleanWindowCount": 5,
-    "releaseCondition": "fresh command + fresh odometry + residual below threshold for required clean windows",
-    "isReleaseReady": false,
-    "advisoryOnly": true
-  }
-}
-```
-
-This answers:
-
-```text
-Can the robot be trusted again, or is it still waiting for causal resynchronization?
-```
-
----
-
-## Save Example Outputs
-
-To capture the four JSON outputs for discussion posts or issue reports:
-
-```bash
-ros2 topic echo /clim/command_execution_integrity --once > command_execution_integrity_example.txt
-ros2 topic echo /clim/evidence_window --once > evidence_window_example.txt
-ros2 topic echo /clim/open_rmf/delay_advisory --once > delay_advisory_example.txt
-ros2 topic echo /clim/resync_state --once > resync_state_example.txt
-```
-
-For the compact summary:
-
-```bash
-ros2 topic echo /clim/open_rmf/summary > clim_open_rmf_summary.txt
 ```
 
 ## G. The “Silent Failure” Test
