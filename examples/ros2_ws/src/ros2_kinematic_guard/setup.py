@@ -26,6 +26,7 @@ setup(
             "kinematic_guard_node = ros2_kinematic_guard.kinematic_guard_node:main",
             "synthetic_odom_provider = ros2_kinematic_guard.synthetic_odom_provider:main",
             "command_integrity_reporter_node = ros2_kinematic_guard.reporter_node:main",
+            "clim_open_rmf_reporter_node = ros2_kinematic_guard.clim_open_rmf_reporter_node:main",
         ],
     },
 )
