@@ -134,7 +134,448 @@ When an anomaly occurs, CLIM dumps a **Black Box** snapshot:
 - Causal Alignment state (`ALIGNED` vs. `BROKEN`).
 - Purpose: Eliminates "vendor-blaming" in multi-vendor sites by providing objective execution logs.
 
-## F. Theory & Implementation
+## F. Quick Start: Run the CLIM Open-RMF Demo
+
+This demo runs a complete closed-loop AMR/AGV command-integrity test in ROS 2.
+
+It starts:
+
+```text
+jitter_injector_node.py
+  Injects bad Wi-Fi / 5G-style command timing failures.
+
+kinematic_guard_node.py
+  Computes NARH-lite residuals and detects command-feedback causal breaks.
+
+synthetic_odom_provider.py
+  Acts as a virtual robot body and publishes /odom.
+
+reporter_node.py
+  Publishes ROS diagnostics and VDA5050-style telemetry.
+
+clim_open_rmf_reporter_node.py
+  Publishes Open-RMF-style DelayAdvisory, EvidenceWindow, ResyncState, and CommandExecutionIntegrity JSON.
+```
+
+---
+
+### 1. Open the ROS 2 workspace
+
+```bash
+cd /workspaces/CLIM-Causal-Link-Integrity-Middleware/examples/ros2_ws
+```
+
+For local use, replace the path with your cloned repository path:
+
+```bash
+cd CLIM-Causal-Link-Integrity-Middleware/examples/ros2_ws
+```
+
+---
+
+### 2. Source ROS 2 Humble
+
+```bash
+source /opt/ros/humble/setup.bash
+```
+
+---
+
+### 3. Build the workspace
+
+```bash
+colcon build --symlink-install
+```
+
+---
+
+### 4. Source the workspace overlay
+
+```bash
+source install/setup.bash
+```
+
+Every new terminal must source both ROS 2 and this workspace:
+
+```bash
+cd /workspaces/CLIM-Causal-Link-Integrity-Middleware/examples/ros2_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+```
+
+If you see:
+
+```text
+Package 'ros2_kinematic_guard' not found
+```
+
+it means the workspace overlay has not been sourced in the current terminal.
+
+---
+
+### 5. Run the Wi-Fi collapse pressure test
+
+```bash
+ros2 launch ros2_kinematic_guard start_pressure_test.launch.py profile:=wifi_collapse
+```
+
+You should see injected network faults such as:
+
+```text
+DUPLICATE_IN_BURST
+BURST_RELEASE_count=16
+REPLAY_STALE
+DROP
+DELAY_0.798s
+```
+
+And NARH Guard events such as:
+
+```text
+RED_BRAKE -> RESYNCING | R_NAR=5.477 | reasons=['CMD_DT_TOO_SMALL']
+```
+
+---
+
+## Watch the CLIM Outputs
+
+Open a new terminal:
+
+```bash
+cd /workspaces/CLIM-Causal-Link-Integrity-Middleware/examples/ros2_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+```
+
+---
+
+### 1. Compact Open-RMF-style summary
+
+```bash
+ros2 topic echo /clim/open_rmf/summary
+```
+
+Example:
+
+```text
+data: plan=demo_plan_001 progress=0.630 state=RESYNCING causal=BROKEN latency=CRITICAL R_NAR=5.477 delay_advisory=True indefinite_candidate=True fleet_action=HOLD_NEW_ORDERS
+---
+data: plan=demo_plan_001 progress=0.630 state=RECOVERED causal=ALIGNED latency=NORMAL R_NAR=0.000 delay_advisory=False indefinite_candidate=False fleet_action=NONE
+---
+```
+
+This compact summary is the best first screenshot for Open-RMF discussions.
+
+---
+
+## The Four CLIM JSON Outputs
+
+CLIM publishes four structured JSON outputs.
+
+---
+
+### 1. Command Execution Integrity
+
+```bash
+ros2 topic echo /clim/command_execution_integrity
+```
+
+This answers:
+
+```text
+Is the recent command-feedback window still trustworthy?
+```
+
+Expected fields include:
+
+```json
+{
+  "commandExecutionIntegrity": {
+    "residual": 5.477,
+    "residualType": "kinematic_consistency",
+    "latencyClass": "CRITICAL",
+    "causalAlignment": "BROKEN",
+    "executionState": "RESYNCING",
+    "dominantCause": "CMD_DT_TOO_SMALL",
+    "recommendedVehicleResponse": "RESYNC_REQUIRED",
+    "suggestedFleetAction": "HOLD_NEW_ORDERS"
+  }
+}
+```
+
+---
+
+### 2. Evidence Window
+
+```bash
+ros2 topic echo /clim/evidence_window
+```
+
+This is the CLIM black-box record.
+
+It captures the short command-feedback window that caused the advisory.
+
+Expected fields include:
+
+```json
+{
+  "evidenceWindow": {
+    "windowId": "clim-window-42",
+    "windowStartUnixSec": 1778753133.17,
+    "windowEndUnixSec": 1778753133.37,
+    "progressPoint": 0.63,
+    "causalAlignment": "BROKEN",
+    "latencyClass": "CRITICAL",
+    "residual": 5.477,
+    "dominantCause": "CMD_DT_TOO_SMALL",
+    "statusSequence": [
+      "RED_BRAKE",
+      "RESYNCING"
+    ],
+    "residualSequence": [
+      31.145,
+      5.477
+    ]
+  }
+}
+```
+
+This is useful for:
+
+```text
+post-incident analysis
+bag / MCAP review
+multi-vendor debugging
+integration responsibility tracing
+```
+
+---
+
+### 3. Open-RMF-style Delay Advisory
+
+```bash
+ros2 topic echo /clim/open_rmf/delay_advisory
+```
+
+This is advisory-only JSON.
+
+It does not publish a real Open-RMF `~/delay` message.  
+A Plan Executor or fleet adapter decides whether to map this advisory into an actual delay report.
+
+Expected fields include:
+
+```json
+{
+  "delayAdvisory": {
+    "advisoryOnly": true,
+    "openRmfMessageMode": "json_only",
+    "shouldReportDelay": true,
+    "planId": "demo_plan_001",
+    "progressPoint": 0.63,
+    "indefiniteDelayCandidate": true,
+    "delayConfidence": 0.92,
+    "cause": {
+      "code": "EXECUTION_INTEGRITY_DEGRADED",
+      "message": "Command-feedback causal alignment is broken.",
+      "dominantCause": "CMD_DT_TOO_SMALL"
+    },
+    "recommendedVehicleResponse": "RESYNC_REQUIRED",
+    "suggestedFleetAction": "HOLD_NEW_ORDERS"
+  }
+}
+```
+
+This answers:
+
+```text
+Should the Plan Executor consider reporting delay or holding progress?
+```
+
+---
+
+### 4. Resync State
+
+```bash
+ros2 topic echo /clim/resync_state
+```
+
+This explains whether the robot is still waiting for clean command-feedback windows.
+
+Expected fields include:
+
+```json
+{
+  "resyncState": {
+    "state": "RESYNCING",
+    "latencyClass": "CRITICAL",
+    "causalAlignment": "BROKEN",
+    "cleanWindowCount": 2,
+    "requiredCleanWindowCount": 5,
+    "releaseCondition": "fresh command + fresh odometry + residual below threshold for required clean windows",
+    "isReleaseReady": false,
+    "advisoryOnly": true
+  }
+}
+```
+
+This answers:
+
+```text
+Can the robot be trusted again, or is it still waiting for causal resynchronization?
+```
+
+---
+
+## Save Example Outputs
+
+To capture the four JSON outputs for discussion posts or issue reports:
+
+```bash
+ros2 topic echo /clim/command_execution_integrity --once > command_execution_integrity_example.txt
+ros2 topic echo /clim/evidence_window --once > evidence_window_example.txt
+ros2 topic echo /clim/open_rmf/delay_advisory --once > delay_advisory_example.txt
+ros2 topic echo /clim/resync_state --once > resync_state_example.txt
+```
+
+For the compact summary:
+
+```bash
+ros2 topic echo /clim/open_rmf/summary > clim_open_rmf_summary.txt
+```
+
+## G. The “Silent Failure” Test
+
+This test compares two cases:
+
+```text
+Case A:
+  Bad Wi-Fi command stream directly drives the synthetic robot body.
+  No CLIM guard.
+  No DelayAdvisory.
+  No EvidenceWindow.
+
+Case B:
+  The same bad command stream passes through CLIM.
+  CLIM reports causal breaks, resync state, and fleet-level advisories.
+```
+
+The point is not that the robot completely stops moving in Case A.
+
+The point is that the system has no structured way to explain whether the movement still matches the command stream.
+
+---
+
+### Case A: Run without CLIM
+
+Terminal 1:
+
+```bash
+cd /workspaces/CLIM-Causal-Link-Integrity-Middleware/examples/ros2_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+
+ros2 run ros2_kinematic_guard jitter_injector_node --ros-args \
+  -p profile:=wifi_collapse \
+  -p use_demo_cmd:=true \
+  -p demo_raw_topic:=/cmd_vel_raw \
+  -p input_topic:=/cmd_vel_raw \
+  -p output_topic:=/cmd_vel_jittered \
+  -p status_topic:=/jitter_injector/status
+```
+
+Terminal 2:
+
+```bash
+cd /workspaces/CLIM-Causal-Link-Integrity-Middleware/examples/ros2_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+
+ros2 run ros2_kinematic_guard synthetic_odom_provider --ros-args \
+  -p input_topic:=/cmd_vel_jittered \
+  -p input_type:=twist \
+  -p odom_topic:=/odom_raw \
+  -p status_topic:=/synthetic_odom_raw/status \
+  -p publish_tf:=false \
+  -p slip_probability:=0.01
+```
+
+Terminal 3:
+
+```bash
+cd /workspaces/CLIM-Causal-Link-Integrity-Middleware/examples/ros2_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+
+ros2 topic echo /odom_raw
+```
+
+You will see odometry being published.
+
+But there is no:
+
+```text
+/clim/open_rmf/delay_advisory
+/clim/evidence_window
+/clim/resync_state
+/clim/command_execution_integrity
+```
+
+The robot body is moving, but the fleet layer receives no causal explanation.
+
+This is the silent failure mode:
+
+```text
+The system still produces motion and odometry,
+but it cannot explain whether the motion belongs to the current command episode.
+```
+
+Stop the three terminals with `Ctrl-C`.
+
+---
+
+### Case B: Run with CLIM
+
+Now run the full CLIM pressure test:
+
+```bash
+ros2 launch ros2_kinematic_guard start_pressure_test.launch.py profile:=wifi_collapse
+```
+
+In a new terminal:
+
+```bash
+ros2 topic echo /clim/open_rmf/summary
+```
+
+Expected output:
+
+```text
+data: plan=demo_plan_001 progress=0.630 state=RESYNCING causal=BROKEN latency=CRITICAL R_NAR=5.477 delay_advisory=True indefinite_candidate=True fleet_action=HOLD_NEW_ORDERS
+---
+data: plan=demo_plan_001 progress=0.630 state=RECOVERED causal=ALIGNED latency=NORMAL R_NAR=0.000 delay_advisory=False indefinite_candidate=False fleet_action=NONE
+---
+```
+
+Now the same kind of degraded timing is visible as:
+
+```text
+causal=BROKEN
+latency=CRITICAL
+delay_advisory=True
+fleet_action=HOLD_NEW_ORDERS
+```
+
+This is the CLIM value proposition:
+
+```text
+Without CLIM:
+  motion continues, but execution integrity is silent.
+
+With CLIM:
+  execution integrity becomes observable, explainable, and actionable.
+```
+
+## H. Theory & Implementation
 
 The original NARH formulation was developed for discrete rigid-body simulation pipelines.
 
