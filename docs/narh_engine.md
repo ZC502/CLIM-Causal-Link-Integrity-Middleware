@@ -1,0 +1,164 @@
+## Mathematical appendix: NARH-lite for ROS 2 command flow
+
+### Background
+
+The original NARH formulation was developed for discrete rigid-body simulation pipelines.
+
+In that setting, a system state is advanced by a sequence of sub-operators:
+
+```text
+s[t+1] = Ψσ(k) ∘ ... ∘ Ψσ(1)(s[t])
+```
+
+where the execution order may depend on solver internals such as constraint partitioning, thread scheduling, batching, or projection steps.
+
+The original discrete associator is written as:
+
+```text
+A(a,b,c;s) =
+    ((Ψa ∘ Ψb) ∘ Ψc)(s)
+  - (Ψa ∘ (Ψb ∘ Ψc))(s)
+```
+
+and the residual is:
+
+```text
+R[t] = || A(a,b,c;s[t]) ||
+```
+
+The important point is that NARH does **not** claim that the physical state space itself is mathematically invalid.
+
+It measures order-dependent deviations introduced by discrete numerical or computational pipelines.
+
+`ros2_kinematic_guard` applies the same idea to ROS 2 command-flow consistency.
+
+For the full high-dimensional NARH research background, see:
+
+### Non-Associative Residual Hypothesis (NARH)
+**1. Setting**
+
+Consider a rigid-body simulation system defined by:
+
+- a state space $S \subset \mathbb{R}^n$
+- a nominal associative update operator $\Phi \Delta t : S \to S$
+- a parallel constraint resolution pipeline composed of sub-operators $`\{\Psi_i\}_{i=1}^k`$
+	​
+The simulator advances the system state through a discrete update step:
+
+$$ s_{t+1} = \Psi_{\sigma(k)} \circ \cdots \circ \Psi_{\sigma(1)} (s_t) $$
+
+where the permutation 𝜎 represents an execution order determined by internal solver mechanisms such as:
+
+- constraint partitioning
+- thread scheduling
+- contact batching
+- solver splitting
+
+Each operator $\Psi_i$ represents a well-defined physical constraint update (e.g., contact resolution, joint projection, or velocity correction).
+
+However, the **order in which these updates are applied may vary between solver iterations or execution contexts.**
+
+---
+
+**2. Order Sensitivity in Discrete Solvers**
+
+In continuous rigid-body mechanics, many transformations belong to associative algebraic structures (e.g., matrix multiplication or quaternion composition).
+
+However, in practical simulation systems, constraint updates are implemented through **finite-precision numerical approximations**. Under such conditions the composed operators may exhibit order sensitivity:
+
+$$(\Psi_a \circ \Psi_b) \circ \Psi_c \neq \Psi_a \circ (\Psi_b \circ \Psi_c)$$
+
+This deviation may arise from:
+- finite-precision arithmetic
+- iterative solver truncation
+- projection steps
+- asynchronous or parallel execution
+
+To quantify this effect, define the **discrete associator:**
+
+$$
+A(a,b,c;s) = \bigl( (\Psi_a \circ \Psi_b) \circ \Psi_c \bigr)(s) - \bigl( \Psi_a \circ (\Psi_b \circ \Psi_c) \bigr)(s)
+$$
+
+---
+
+**3. Non-Associative Residual**
+
+The Non-Associative Residual (NAR) at state $s_t$ is defined as
+
+$R_t = \lVert A(a,b,c; s_t) \rVert$
+
+for a selected triple of constraint operators representative of the solver pipeline.
+
+This residual does **not** represent algebraic non-associativity of the physical state space itself.
+Instead, it measures **order-dependent deviations introduced by the discrete numerical solver.**
+
+In other words, $R_t$ quantifies the degree to which the simulation outcome depends on the ordering of constraint updates.
+
+---
+
+**4. Hypothesis (NARH)**
+
+The **Non-Associative Residual Hypothesis (NARH)** states that:
+
+In high interaction density regimes — such as contact-rich robotic manipulation or high-speed trajectory execution — the non-associative residual  can become non-negligible relative to trajectory stability metrics.
+
+Over extended simulation horizons, this residual may accumulate as a structured drift component:
+
+$\sum_{t=0}^{T} R_t \not\approx 0$
+
+even when the state increments remain bounded:
+
+$`\| s_{t+1} - s_t \| < \epsilon`$
+
+This implies that solver order sensitivity may introduce **small but measurable deviations in simulated trajectories.**
+
+---
+
+**5. Interpretation for Robot Simulation**
+
+NARH does **not** claim that simulators are mathematically incorrect or physically invalid.
+
+Instead, it highlights a practical property of discrete rigid-body solvers:
+
+>Parallel constraint resolution may introduce small order-dependent residuals that are not explicitly represented in the simulation state.
+
+For industrial robot simulations, such residuals may manifest as:
+- micro-scale TCP jitter
+- discontinuous pose jumps
+- trajectory instability under small timestep changes
+- sensitivity to solver parameterization
+
+These effects are typically subtle but may become visible when analyzing robot trajectories in Cartesian space.
+
+Tools such as **SIPA (Simulation Integrity & Physics Auditor)** analyze trajectory residuals to detect such phenomena in a diagnostic context.
+
+---
+
+**6. Falsifiability**
+
+The NARH framework is empirically testable and may be falsified if:
+
+1. The measured residual $R_t$ remains indistinguishable from numerical noise across interaction densities.
+2. Reordering constraint application produces statistically identical trajectories.
+3.  Classical scalar stability metrics (e.g., kinetic energy norms or velocity bounds) detect instability earlier than any associator-derived signal.
+
+In such cases, the solver behavior may be considered effectively order-invariant for the examined regime.
+
+---
+
+**7. Practical Implication**
+
+If validated empirically, NARH suggests that:
+- Order sensitivity is an inherent property of discrete constraint solvers.
+- Residual-based diagnostics can serve as **early indicators of trajectory instability.**
+- Trajectory analysis tools may benefit from monitoring solver-induced residual signals in addition to traditional stability metrics.
+
+For industrial robot simulation pipelines, such diagnostics can assist in verifying **trajectory physical consistency** before deployment to real hardware.
+
+---
+
+**References**
+
+Hong.Ji.Wang, *Principles of Octonion Mathematical Physics* (Tianjin Science and
+Technology Press, 2020. Chinese version, ISBN: 978-7-5576-8256-9）
