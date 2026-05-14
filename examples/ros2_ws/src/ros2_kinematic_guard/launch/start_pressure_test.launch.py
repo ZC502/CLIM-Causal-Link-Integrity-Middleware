@@ -196,7 +196,42 @@ def generate_launch_description():
             }],
         ),
 
-        # 5. Optional static transform map -> odom
+        # 5. CLIM Open-RMF-style reporter
+        Node(
+            package="ros2_kinematic_guard",
+            executable="clim_open_rmf_reporter_node",
+            name="clim_open_rmf_reporter",
+            output="screen",
+            parameters=[{
+                "guard_status_topic": "/kinematic_guard/status",
+                "guard_residual_topic": "/kinematic_guard/residual",
+
+                "command_integrity_topic": "/clim/command_execution_integrity",
+                "evidence_window_topic": "/clim/evidence_window",
+                "delay_advisory_topic": "/clim/open_rmf/delay_advisory",
+                "resync_state_topic": "/clim/resync_state",
+                "summary_topic": "/clim/open_rmf/summary",
+
+                "robot_id": "demo_amr_001",
+                "fleet_id": "demo_fleet",
+                "plan_id": "demo_plan_001",
+
+                "advisory_only": True,
+                "open_rmf_message_mode": "json_only",
+
+                "yellow_threshold": yellow_threshold,
+                "red_threshold": red_threshold,
+                "required_clean_windows": 5,
+                "status_timeout": 1.0,
+                "publish_rate_hz": 5.0,
+
+                "progress_point": 0.63,
+                "progress_point_mode": "manual",
+                "estimated_delay_seconds": 2.0,
+            }],
+        ),
+        
+        # 6. Optional static transform map -> odom
         Node(
             condition=IfCondition(use_static_tf),
             package="tf2_ros",
