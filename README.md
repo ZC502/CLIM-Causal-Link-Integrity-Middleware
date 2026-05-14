@@ -166,7 +166,6 @@ It measures order-dependent deviations introduced by discrete numerical or compu
 
 `ros2_kinematic_guard` applies the same idea to ROS 2 command-flow consistency.
 
-For the full high-dimensional NARH research background, see:
 Detailed mathematical derivation of the **NARH Engine**, SIPA background, and $R_{NAR}$ calculation logic are moved to:
 
 🔗 docs/narh_engine.md
